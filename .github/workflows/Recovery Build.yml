@@ -42,7 +42,7 @@ jobs:
 
       - name: Prepare environment
         run: |
-          sudo apt update && sudo apt install -y build-essential git python3 curl
+          sudo apt update && sudo apt install -y build-essential git python3 curl zip unzip
 
       - name: Install repo
         run: |
@@ -58,14 +58,18 @@ jobs:
           git config --global user.name "NicoLYDX20"
           git config --global user.email "bl70420nc@gmail.com"
           repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
-          repo sync -j$(nproc --all) --force-sync
+          repo sync -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         working-directory: .
 
-      - name: Clone device tree (No-Auth Method)
+      - name: Force Download Tree (Anti-Auth Method)
         run: |
           cd workspace
-          # استخدام رابط مباشر يتخطى نظام التحقق
-          git clone --depth=1 https://github.com/nicolas-v/twrp_infinix_x6835b ./${{ github.event.inputs.DEVICE_PATH }}
+          mkdir -p ${{ github.event.inputs.DEVICE_PATH }}
+          # تحميل يدوي مباشر لتجنب خطأ Username تماماً
+          curl -L "https://github.com/nicolas-v/twrp_infinix_x6835b/archive/refs/heads/main.zip" -o device_tree.zip
+          unzip -q device_tree.zip
+          cp -r twrp_infinix_x6835b-main/* ${{ github.event.inputs.DEVICE_PATH }}/
+          rm -rf device_tree.zip twrp_infinix_x6835b-main
         working-directory: .
 
       - name: Set Swap Space
@@ -78,16 +82,19 @@ jobs:
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && make ${{ github.event.inputs.BUILD_TARGET }}
+          lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng || lunch ${{ github.event.inputs.DEVICE_NAME }}-eng
+          make clean
+          make ${{ github.event.inputs.BUILD_TARGET }} -j$(nproc --all)
+          # البحث عن ملف الـ img ونسخه للمجلد الرئيسي للرفع
           find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
 
-      - name: Upload to Release
+      - name: Upload to Release (Download Your IMG Here)
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
+          name: TWRP-Build-${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "Build successful"
+          body: "تم بناء ملف الـ IMG بنجاح لجهاز ${{ github.event.inputs.DEVICE_NAME }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
