@@ -30,17 +30,17 @@ jobs:
           mkdir workspace
           cd workspace
           export PATH="$HOME/bin:$PATH"
-          git config --global user.name "NicoLYDX20"
+          git config --global user.name "wwwehab123alsalhy-spec"
           git config --global user.email "bl70420nc@gmail.com"
           repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         working-directory: .
 
-      - name: Clone device tree (Auth-Link)
+      - name: Clone device tree (Self-Repo Method)
         run: |
           cd workspace
-          # وضعنا رابط المستودع مباشرة لضمان عدم حدوث خطأ في الخانات
-          git clone --depth=1 https://github.com/nicolas-v/twrp_infinix_x6835b.git device/infinix/x6835b
+          # الآن سنسحب الملفات من حسابك أنت مباشرة لنتجنب طلب تسجيل الدخول
+          git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
         working-directory: .
 
       - name: Set Swap Space
@@ -53,19 +53,21 @@ jobs:
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
+          # استخدام اسم الميكفايل الصحيح للجهاز
           lunch twrp_x6835b-eng || lunch x6835b-eng
           make clean
           make recoveryimage -j$(nproc --all)
-          # هذا السطر يبحث عن الـ img وينسخه فوراً لرفعه
-          cp out/target/product/x6835b/recovery.img ${GITHUB_WORKSPACE}/ || find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # استخراج ملف الـ img المطلوب
+          find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
 
-      - name: Upload to Release
+      - name: Upload Result
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-Infinix-x6835b-${{ github.run_id }}
+          name: TWRP-Infinix-x6835b-Success
           tag_name: v${{ github.run_id }}
-          body: "تفضل، هذا هو ملف الـ img الخاص بجهازك."
+          body: "مبروك! هذا هو ملف الـ img الذي طلبته."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
