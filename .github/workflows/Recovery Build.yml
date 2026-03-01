@@ -6,7 +6,7 @@ on:
       MANIFEST_URL:
         description: 'MANIFEST_URL'
         required: true
-        default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp'
+        default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git'
       MANIFEST_BRANCH:
         description: 'MANIFEST_BRANCH'
         required: true
@@ -14,44 +14,37 @@ on:
       DEVICE_TREE_URL:
         description: 'DEVICE_TREE_URL'
         required: true
-        default: 'https://github.com/TeamWin/android_device_asus_I003D'
+        default: 'https://github.com/nicolas-v/twrp_infinix_x6835b.git'
       DEVICE_TREE_BRANCH:
         description: 'DEVICE_TREE_BRANCH'
         required: true
-        default: 'android-12.1'
+        default: 'main'
       DEVICE_PATH:
         description: 'DEVICE_PATH'
         required: true
-        default: 'device/asus/I003D'
-      COMMON_TREE_URL:
-        description: 'COMMON_TREE_URL (if no common tree, leave blank)'
-        required: false
-      COMMON_PATH:
-        description: 'COMMON_PATH (if no common tree, leave blank)'
-        required: false
+        default: 'device/infinix/x6835b'
       DEVICE_NAME:
         description: 'DEVICE_NAME'
         required: true
-        default: 'I003D'
+        default: 'x6835b'
       MAKEFILE_NAME:
         description: 'MAKEFILE_NAME'
         required: true
-        default: 'twrp_I003D'
+        default: 'twrp_x6835b'
       BUILD_TARGET:
         description: 'BUILD_TARGET'
         required: true
-        default: 'recovery'
+        default: 'recoveryimage'
 
 jobs:
   build:
-    if: github.event.repository.owner.id == github.event.sender.id
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Display Run Parameters
         run: |
-          echo "::group::User Environment Variables"
+          echo "::group::User Allowed Parameters"
           echo "Manifest URL: ${{ github.event.inputs.MANIFEST_URL }}"
           echo "Manifest Branch: ${{ github.event.inputs.MANIFEST_BRANCH }}"
           echo "Device Tree URL: ${{ github.event.inputs.DEVICE_TREE_URL }}"
@@ -59,7 +52,7 @@ jobs:
           echo "Device Path: ${{ github.event.inputs.DEVICE_PATH }}"
           echo "Device Name: ${{ github.event.inputs.DEVICE_NAME }}"
           echo "Makefile Name: ${{ github.event.inputs.MAKEFILE_NAME }}"
-          echo "Build Target: ${{ github.event.inputs.BUILD_TARGET }}.img"
+          echo "Build Target: ${{ github.event.inputs.BUILD_TARGET }}"
           echo "::endgroup::"
 
       - name: Check Out
@@ -85,8 +78,8 @@ jobs:
           mkdir workspace
           cd workspace
           echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
-          git config --global user.name "Nico170420"
-          git config --global user.email "b170420nc@gmail.com"
+          git config --global user.name "NicoLYDX20"
+          git config --global user.email "bl70420nc@gmail.com"
           ~/bin/repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
         id: pwd
 
@@ -97,12 +90,12 @@ jobs:
 
       - name: Clone device tree
         run: |
-          git clone ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ${{ github.event.inputs.DEVICE_PATH }}
-        working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+          git clone ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
+        working-directory: workspace
 
       - name: Sync Device Dependencies
         run: |
-          bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}/twrp.dependencies
+          bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}
           ~/bin/repo sync -j$(nproc --all)
         working-directory: ${{ steps.pwd.outputs.workspace-folder }}
         continue-on-error: true
@@ -128,6 +121,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            workspace/out/target/product/x6835b/recoveryimage.img
-     - tag_name: v${{ github.run_id }}
-     -name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
+            workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/recoveryimage.img
+          name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}
+          body: |
+            Manifest: ${{ github.event.inputs.MANIFEST_BRANCH }}
+            Device: ${{ github.event.inputs.DEVICE_NAME }}
+            Target: ${{ github.event.inputs.BUILD_TARGET }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
