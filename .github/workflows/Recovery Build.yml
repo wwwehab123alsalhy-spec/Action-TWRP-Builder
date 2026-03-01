@@ -43,7 +43,7 @@ jobs:
       - name: Prepare environment
         run: |
           sudo apt update
-          sudo apt install -y build-essential libssl-dev libxml2-utils git git-lfs python3 bc curl
+          sudo apt install -y build-essential libssl-dev libxml2-utils git git-lfs python3 bc curl zip unzip
 
       - name: Install repo
         run: |
@@ -59,8 +59,13 @@ jobs:
           git config --global user.name "NicoLYDX20"
           git config --global user.email "bl70420nc@gmail.com"
           repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
-          # إضافة شجرة الجهاز يدوياً للمانيفست لضمان التحميل
-          git clone https://github.com/nicolas-v/twrp_infinix_x6835b.git -b main ./${{ github.event.inputs.DEVICE_PATH }}
+          
+          # تحميل شجرة الجهاز كملف مضغوط لتجنب طلب Username
+          mkdir -p ${{ github.event.inputs.DEVICE_PATH }}
+          curl -L https://github.com/nicolas-v/twrp_infinix_x6835b/archive/refs/heads/main.zip -o device_tree.zip
+          unzip device_tree.zip
+          cp -r twrp_infinix_x6835b-main/* ${{ github.event.inputs.DEVICE_PATH }}/
+          
           repo sync -j$(nproc --all) --force-sync
         working-directory: .
 
@@ -75,7 +80,6 @@ jobs:
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && make ${{ github.event.inputs.BUILD_TARGET }}
-          # البحث والنسخ للمجلد الرئيسي
           find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
 
       - name: Upload to Release
