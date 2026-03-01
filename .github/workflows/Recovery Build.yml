@@ -129,3 +129,5 @@ jobs:
         with:
           files: |
             workspace/out/target/product/x6835b/recoveryimage.img
+     - tag_name: v${{ github.run_id }}
+     -name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
