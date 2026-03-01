@@ -1,4 +1,4 @@
-name: Recovery Build
+صحname: Recovery Build
 
 on:
   workflow_dispatch:
@@ -151,7 +151,12 @@ jobs:
       uses: pierotofy/set-swap-space@master
       with:
         swap-size-gb: 12
-
+    
+    - name: Force Cleanup Vendor
+        run: |
+          rm -rf workspace/device/infinix/x6835b/recovery/root/vendor
+          sync
+          
     - name: Building recovery
       run: |
         source build/envsetup.sh
