@@ -62,14 +62,15 @@ jobs:
           # 1. تهيئة المانيفست الأساسي
           repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
           
-          # 2. إنشاء المانيفست المحلي لإضافة شجرة الجهاز بشكل رسمي
+          # 2. إنشاء المانيفست المحلي مع الرابط الكامل لـ GitHub
           mkdir -p .repo/local_manifests
           echo '<?xml version="1.0" encoding="UTF-8"?>
           <manifest>
-            <project path="device/infinix/x6835b" name="nicolas-v/twrp_infinix_x6835b" remote="github" revision="main" />
+            <remote name="github_full" fetch="https://github.com" />
+            <project path="device/infinix/x6835b" name="nicolas-v/twrp_infinix_x6835b" remote="github_full" revision="main" />
           </manifest>' > .repo/local_manifests/values.xml
           
-          # 3. المزامنة النهائية (ستقوم بتحميل الشجرة تلقائياً)
+          # 3. المزامنة النهائية
           repo sync -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         working-directory: .
 
