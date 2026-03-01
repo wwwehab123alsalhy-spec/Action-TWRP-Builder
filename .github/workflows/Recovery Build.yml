@@ -40,62 +40,45 @@ jobs:
       - name: Cleanup
         uses: rokibhasansagar/slimhub_actions@main
 
-      - name: Prepare the environment
+      - name: Prepare environment
         run: |
-          sudo apt update && sudo apt upgrade -y
-          sudo apt install -y build-essential libssl-dev libxml2-utils git git-lfs python3
+          sudo apt update
+          sudo apt install -y build-essential libssl-dev libxml2-utils git git-lfs python3 bc curl
 
       - name: Install repo
         run: |
           mkdir ~/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
           chmod a+x ~/bin/repo
-          export PATH="$HOME/bin:$PATH"
 
-      - name: Initialize repo
+      - name: Initialize and Sync Repo
         run: |
           mkdir workspace
           cd workspace
-          echo "workspace-folder=$(pwd)" >> $GITHUB_OUTPUT
+          export PATH="$HOME/bin:$PATH"
           git config --global user.name "NicoLYDX20"
           git config --global user.email "bl70420nc@gmail.com"
-          ~/bin/repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+          repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+          repo sync -j$(nproc --all) --force-sync
         id: pwd
-
-      - name: Repo Sync
-        run: |
-          ~/bin/repo sync -j$(nproc --all) --force-sync
-        working-directory: workspace
 
       - name: Clone device tree
         run: |
-          git clone https://github.com/nicolas-v/twrp_infinix_x6835b.git -b main ./${{ github.event.inputs.DEVICE_PATH }}
-        working-directory: workspace
-
-      - name: Sync Device Dependencies
-        run: |
-          bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}
-          ~/bin/repo sync -j$(nproc --all)
-        working-directory: ${{ steps.pwd.outputs.workspace-folder }}
-        continue-on-error: true
+          cd workspace
+          git clone --depth=1 https://github.com/nicolas-v/twrp_infinix_x6835b.git -b main ./${{ github.event.inputs.DEVICE_PATH }}
 
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 12
 
-      - name: Force Cleanup Vendor
-        run: |
-          rm -rf workspace/device/infinix/x6835b/recovery/root/vendor
-          sync
-
       - name: Building recovery
         run: |
+          cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && make ${{ github.event.inputs.BUILD_TARGET }}
           find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
-        working-directory: workspace
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
@@ -105,7 +88,6 @@ jobs:
           name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
           body: |
-            Manifest: ${{ github.event.inputs.MANIFEST_BRANCH }}
             Device: ${{ github.event.inputs.DEVICE_NAME }}
             Target: ${{ github.event.inputs.BUILD_TARGET }}
         env:
