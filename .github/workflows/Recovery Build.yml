@@ -124,9 +124,17 @@ jobs:
             workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/recoveryimage.img
           name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/recoveryimage.img
+          name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}
           body: |
             Manifest: ${{ github.event.inputs.MANIFEST_BRANCH }}
             Device: ${{ github.event.inputs.DEVICE_NAME }}
             Target: ${{ github.event.inputs.BUILD_TARGET }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
