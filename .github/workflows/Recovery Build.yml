@@ -90,7 +90,7 @@ jobs:
 
       - name: Clone device tree
         run: |
-          git clone ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
+          git clone --depth=1 ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
         working-directory: workspace
 
       - name: Sync Device Dependencies
@@ -122,7 +122,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-             ${{ github.workspace }}/*.img
+            ${{ github.workspace }}/*.img
           name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
           body: |
