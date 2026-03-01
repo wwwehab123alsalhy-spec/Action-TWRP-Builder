@@ -51,7 +51,7 @@ jobs:
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
           chmod a+x ~/bin/repo
 
-      - name: Initialize and Sync Repo
+      - name: Initialize and Sync
         run: |
           mkdir workspace
           cd workspace
@@ -59,13 +59,10 @@ jobs:
           git config --global user.name "NicoLYDX20"
           git config --global user.email "bl70420nc@gmail.com"
           repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+          # إضافة شجرة الجهاز يدوياً للمانيفست لضمان التحميل
+          git clone https://github.com/nicolas-v/twrp_infinix_x6835b.git -b main ./${{ github.event.inputs.DEVICE_PATH }}
           repo sync -j$(nproc --all) --force-sync
-        id: pwd
-
-      - name: Clone device tree
-        run: |
-          cd workspace
-          git clone --depth=1 https://github.com/nicolas-v/twrp_infinix_x6835b.git -b main ./${{ github.event.inputs.DEVICE_PATH }}
+        working-directory: .
 
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master
@@ -78,6 +75,7 @@ jobs:
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && make ${{ github.event.inputs.BUILD_TARGET }}
+          # البحث والنسخ للمجلد الرئيسي
           find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
 
       - name: Upload to Release
