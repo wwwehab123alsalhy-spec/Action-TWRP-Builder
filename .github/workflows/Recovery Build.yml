@@ -2,31 +2,6 @@ name: Recovery Build
 
 on:
   workflow_dispatch:
-    inputs:
-      MANIFEST_URL:
-        description: 'MANIFEST_URL'
-        required: true
-        default: 'https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git'
-      MANIFEST_BRANCH:
-        description: 'MANIFEST_BRANCH'
-        required: true
-        default: 'twrp-12.1'
-      DEVICE_PATH:
-        description: 'DEVICE_PATH'
-        required: true
-        default: 'device/infinix/x6835b'
-      DEVICE_NAME:
-        description: 'DEVICE_NAME'
-        required: true
-        default: 'x6835b'
-      MAKEFILE_NAME:
-        description: 'MAKEFILE_NAME'
-        required: true
-        default: 'twrp_x6835b'
-      BUILD_TARGET:
-        description: 'BUILD_TARGET'
-        required: true
-        default: 'recoveryimage'
 
 jobs:
   build:
@@ -57,19 +32,15 @@ jobs:
           export PATH="$HOME/bin:$PATH"
           git config --global user.name "NicoLYDX20"
           git config --global user.email "bl70420nc@gmail.com"
-          repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+          repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         working-directory: .
 
-      - name: Force Download Tree (Anti-Auth Method)
+      - name: Clone device tree (Auth-Link)
         run: |
           cd workspace
-          mkdir -p ${{ github.event.inputs.DEVICE_PATH }}
-          # تحميل يدوي مباشر لتجنب خطأ Username تماماً
-          curl -L "https://github.com/nicolas-v/twrp_infinix_x6835b/archive/refs/heads/main.zip" -o device_tree.zip
-          unzip -q device_tree.zip
-          cp -r twrp_infinix_x6835b-main/* ${{ github.event.inputs.DEVICE_PATH }}/
-          rm -rf device_tree.zip twrp_infinix_x6835b-main
+          # وضعنا رابط المستودع مباشرة لضمان عدم حدوث خطأ في الخانات
+          git clone --depth=1 https://github.com/nicolas-v/twrp_infinix_x6835b.git device/infinix/x6835b
         working-directory: .
 
       - name: Set Swap Space
@@ -82,19 +53,19 @@ jobs:
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng || lunch ${{ github.event.inputs.DEVICE_NAME }}-eng
+          lunch twrp_x6835b-eng || lunch x6835b-eng
           make clean
-          make ${{ github.event.inputs.BUILD_TARGET }} -j$(nproc --all)
-          # البحث عن ملف الـ img ونسخه للمجلد الرئيسي للرفع
-          find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          make recoveryimage -j$(nproc --all)
+          # هذا السطر يبحث عن الـ img وينسخه فوراً لرفعه
+          cp out/target/product/x6835b/recovery.img ${GITHUB_WORKSPACE}/ || find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
 
-      - name: Upload to Release (Download Your IMG Here)
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-Build-${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
+          name: TWRP-Infinix-x6835b-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "تم بناء ملف الـ IMG بنجاح لجهاز ${{ github.event.inputs.DEVICE_NAME }}"
+          body: "تفضل، هذا هو ملف الـ img الخاص بجهازك."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
