@@ -43,7 +43,7 @@ jobs:
       - name: Prepare environment
         run: |
           sudo apt update
-          sudo apt install -y build-essential libssl-dev libxml2-utils git git-lfs python3 bc curl zip unzip
+          sudo apt install -y build-essential libssl-dev libxml2-utils git git-lfs python3 bc curl
 
       - name: Install repo
         run: |
@@ -58,15 +58,19 @@ jobs:
           export PATH="$HOME/bin:$PATH"
           git config --global user.name "NicoLYDX20"
           git config --global user.email "bl70420nc@gmail.com"
+          
+          # 1. تهيئة المانيفست الأساسي
           repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
           
-          # تحميل شجرة الجهاز كملف مضغوط لتجنب طلب Username
-          mkdir -p ${{ github.event.inputs.DEVICE_PATH }}
-          curl -L https://github.com/nicolas-v/twrp_infinix_x6835b/archive/refs/heads/main.zip -o device_tree.zip
-          unzip device_tree.zip
-          cp -r twrp_infinix_x6835b-main/* ${{ github.event.inputs.DEVICE_PATH }}/
+          # 2. إنشاء المانيفست المحلي لإضافة شجرة الجهاز بشكل رسمي
+          mkdir -p .repo/local_manifests
+          echo '<?xml version="1.0" encoding="UTF-8"?>
+          <manifest>
+            <project path="device/infinix/x6835b" name="nicolas-v/twrp_infinix_x6835b" remote="github" revision="main" />
+          </manifest>' > .repo/local_manifests/values.xml
           
-          repo sync -j$(nproc --all) --force-sync
+          # 3. المزامنة النهائية (ستقوم بتحميل الشجرة تلقائياً)
+          repo sync -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         working-directory: .
 
       - name: Set Swap Space
