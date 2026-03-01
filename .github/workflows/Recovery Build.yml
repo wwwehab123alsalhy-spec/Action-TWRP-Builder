@@ -11,10 +11,6 @@ on:
         description: 'MANIFEST_BRANCH'
         required: true
         default: 'twrp-12.1'
-      DEVICE_TREE_URL:
-        description: 'DEVICE_TREE_URL'
-        required: true
-        default: 'http://github.com/nicolas-v/twrp_infinix_x6835b'
       DEVICE_PATH:
         description: 'DEVICE_PATH'
         required: true
@@ -65,10 +61,11 @@ jobs:
           repo sync -j$(nproc --all) --force-sync
         working-directory: .
 
-      - name: Clone device tree
+      - name: Clone device tree (No-Auth Method)
         run: |
           cd workspace
-          git clone --depth=1 ${{ github.event.inputs.DEVICE_TREE_URL }} -b main ./${{ github.event.inputs.DEVICE_PATH }}
+          # استخدام رابط مباشر يتخطى نظام التحقق
+          git clone --depth=1 https://github.com/nicolas-v/twrp_infinix_x6835b ./${{ github.event.inputs.DEVICE_PATH }}
         working-directory: .
 
       - name: Set Swap Space
@@ -91,6 +88,6 @@ jobs:
             ${{ github.workspace }}/*.img
           name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "Recovery build for ${{ github.event.inputs.DEVICE_NAME }}"
+          body: "Build successful"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
