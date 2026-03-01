@@ -11,14 +11,6 @@ on:
         description: 'MANIFEST_BRANCH'
         required: true
         default: 'twrp-12.1'
-      DEVICE_TREE_URL:
-        description: 'DEVICE_TREE_URL'
-        required: true
-        default: 'https://github.com/nicolas-v/twrp_infinix_x6835b.git'
-      DEVICE_TREE_BRANCH:
-        description: 'DEVICE_TREE_BRANCH'
-        required: true
-        default: 'main'
       DEVICE_PATH:
         description: 'DEVICE_PATH'
         required: true
@@ -42,19 +34,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Display Run Parameters
-        run: |
-          echo "::group::User Allowed Parameters"
-          echo "Manifest URL: ${{ github.event.inputs.MANIFEST_URL }}"
-          echo "Manifest Branch: ${{ github.event.inputs.MANIFEST_BRANCH }}"
-          echo "Device Tree URL: ${{ github.event.inputs.DEVICE_TREE_URL }}"
-          echo "Device Tree Branch: ${{ github.event.inputs.DEVICE_TREE_BRANCH }}"
-          echo "Device Path: ${{ github.event.inputs.DEVICE_PATH }}"
-          echo "Device Name: ${{ github.event.inputs.DEVICE_NAME }}"
-          echo "Makefile Name: ${{ github.event.inputs.MAKEFILE_NAME }}"
-          echo "Build Target: ${{ github.event.inputs.BUILD_TARGET }}"
-          echo "::endgroup::"
-
       - name: Check Out
         uses: actions/checkout@v4
 
@@ -90,7 +69,7 @@ jobs:
 
       - name: Clone device tree
         run: |
-          git clone --depth=1 ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
+          git clone https://github.com/nicolas-v/twrp_infinix_x6835b.git -b main ./${{ github.event.inputs.DEVICE_PATH }}
         working-directory: workspace
 
       - name: Sync Device Dependencies
