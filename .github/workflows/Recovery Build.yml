@@ -1,4 +1,4 @@
-name: Recovery Build
+name: Recovery Build Final
 
 on:
   workflow_dispatch:
@@ -36,10 +36,10 @@ jobs:
           repo sync -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         working-directory: .
 
-      - name: Clone device tree (Self-Repo Method)
+      - name: Clone device tree (Verified Account)
         run: |
           cd workspace
-          # الآن سنسحب الملفات من حسابك أنت مباشرة لنتجنب طلب تسجيل الدخول
+          # السحب من مستودعك الخاص لتجنب طلب كلمة المرور
           git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
         working-directory: .
 
@@ -53,21 +53,21 @@ jobs:
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # استخدام اسم الميكفايل الصحيح للجهاز
+          # محاولة استدعاء ملفات الجهاز للبدء
           lunch twrp_x6835b-eng || lunch x6835b-eng
           make clean
           make recoveryimage -j$(nproc --all)
-          # استخراج ملف الـ img المطلوب
-          find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
-          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # البحث الشامل عن ملف الـ img ونسخه للمجلد الرئيسي للرفع
+          find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+        working-directory: .
 
-      - name: Upload Result
+      - name: Upload Result to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-Infinix-x6835b-Success
+          name: TWRP-Build-Infinix-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "مبروك! هذا هو ملف الـ img الذي طلبته."
+          body: "إذا نجحت عملية البناء، ستجد ملف الـ recovery.img أو boot.img في الأسفل."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
