@@ -1,4 +1,4 @@
-name: Recovery Build Final
+name: Recovery Build Final Fix
 
 on:
   workflow_dispatch:
@@ -36,10 +36,9 @@ jobs:
           repo sync -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
         working-directory: .
 
-      - name: Clone device tree (Verified Account)
+      - name: Clone device tree
         run: |
           cd workspace
-          # السحب من مستودعك الخاص لتجنب طلب كلمة المرور
           git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
         working-directory: .
 
@@ -48,26 +47,29 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery
+      - name: Building recovery (The Force Method)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # محاولة استدعاء ملفات الجهاز للبدء
+          # أوامر إجبار البناء لنظام 12.1
           lunch twrp_x6835b-eng || lunch x6835b-eng
           make clean
-          make recoveryimage -j$(nproc --all)
-          # البحث الشامل عن ملف الـ img ونسخه للمجلد الرئيسي للرفع
-          find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # هذا الأمر هو السر لإنتاج الـ img
+          mka recoveryimage -j$(nproc --all)
+          # سطر البحث والنسخ القوي
+          find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/ -name "twrp-*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
-      - name: Upload Result to Release
+      - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-Build-Infinix-${{ github.run_id }}
+          name: TWRP-IMAGE-READY-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "إذا نجحت عملية البناء، ستجد ملف الـ recovery.img أو boot.img في الأسفل."
+          body: "إذا لم يظهر ملف الـ img بالأسفل، أخبرني فوراً لنغير الميكفايل."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
