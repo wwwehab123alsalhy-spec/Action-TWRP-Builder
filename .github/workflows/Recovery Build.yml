@@ -1,4 +1,4 @@
-name: Recovery Build FINAL SUCCESS
+name: Recovery Build FINAL FORCE
 
 on:
   workflow_dispatch:
@@ -47,19 +47,19 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery
+      - name: Building recovery (Full Forced Build)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # استخدام الاسم المطابق لملفاتك في الصورة 1000000909
+          # استخدام الاسم المطابق لصورك
           lunch twrp_x6835b-eng
-          make clean
-          # طلب بناء الريكوفري للمنتج المحدد
-          make recoveryimage -j$(nproc --all)
-          # البحث والنسخ للرفع
-          find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
-          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # أمر التنظيف العميق لمنع رسالة no work to do
+          make clean && make mrproper
+          # أمر بناء الريكوفري مع إجبار جلب التبعيات
+          mka recoveryimage -j$(nproc --all)
+          # سطر البحث النهائي في كل مكان
+          find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
       - name: Upload Result
@@ -67,8 +67,9 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-FINAL-IMAGE-${{ github.run_id }}
+          name: TWRP-FINAL-RECOVERY-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "تم مطابقة الاسم بنجاح وبناء الملف."
+          body: "إذا لم يظهر الـ img الآن، فهناك نقص في ملف BoardConfig.mk داخل المستودع."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
