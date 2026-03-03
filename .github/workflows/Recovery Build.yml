@@ -1,4 +1,4 @@
-name: Recovery Build Final Fix
+name: Recovery Build FINAL SUCCESS
 
 on:
   workflow_dispatch:
@@ -39,7 +39,6 @@ jobs:
       - name: Clone device tree
         run: |
           cd workspace
-          # السحب من حسابك الموثق لتجنب طلب Username
           git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
         working-directory: .
 
@@ -48,27 +47,28 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Force All Targets)
+      - name: Building recovery
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # تجربة كافة مسميات الجهاز الممكنة لضمان التوافق مع الـ Device Tree
-          lunch twrp_x6835b-eng || lunch omni_x6835b-eng || lunch aosp_x6835b-eng || lunch x6835b-eng
+          # استخدام الاسم المطابق لملفاتك في الصورة 1000000909
+          lunch twrp_x6835b-eng
           make clean
-          # استخدام mka لإجبار النظام على تجميع ملف الـ img النهائي
-          mka recoveryimage -j$(nproc --all) || mka bootimage -j$(nproc --all)
-          # البحث الشامل في كل المجلدات عن أي ملف ينتهي بـ .img
-          find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # طلب بناء الريكوفري للمنتج المحدد
+          make recoveryimage -j$(nproc --all)
+          # البحث والنسخ للرفع
+          find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
-      - name: Upload Result to Release
+      - name: Upload Result
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-RESULT-READY-${{ github.run_id }}
+          name: TWRP-FINAL-IMAGE-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "إذا نجح البناء، ستظهر ملفات الـ img في قسم Assets بالأسفل."
+          body: "تم مطابقة الاسم بنجاح وبناء الملف."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
