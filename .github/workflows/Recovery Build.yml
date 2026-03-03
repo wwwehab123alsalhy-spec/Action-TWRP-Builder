@@ -1,4 +1,4 @@
-name: Recovery Build FINAL SUCCESS FIXED
+name: Recovery Build FINAL SUCCESS ULTRA SLIM
 
 on:
   workflow_dispatch:
@@ -47,25 +47,23 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Force Symlinks Fix)
+      - name: Building recovery (Ultra Slim Force)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # اختيار الهدف الصحيح بناءً على ملفاتك الموثقة في الصور السابقة
           lunch twrp_x6835b-eng
           
-          # الخطوة السحرية: تنظيف المجلدات التي سببت فشل ninja في محاولتك الأخيرة
+          # تنظيف المجلدات المتعارضة قسرياً لمنع خطأ Symlink المتكرر
           rm -rf out/target/product/x6835b/recovery/root/vendor
           rm -rf out/target/product/x6835b/root/vendor
           
-          # إجبار بناء الـ Boot والـ Recovery معاً لتجاوز تعارض الملفات
-          make bootimage recoveryimage -j$(nproc --all) || make bootimage -j$(nproc --all)
+          # بناء الريكوفري فقط لضمان عدم امتلاء القرص (Disk Space)
+          make recoveryimage -j$(nproc --all)
           
-          # البحث عن الملفات الناتجة ونسخها للرفع
-          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # البحث عن الملفات ونسخها للرفع (سواء كان ريكوفري أو بوت)
           find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
-          find out/target/product/ -name "twrp-*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
       - name: Upload Result
@@ -73,8 +71,8 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-FINAL-IMAGE-READY-${{ github.run_id }}
+          name: TWRP-FINAL-IMAGE-SUCCESS-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "إذا اكتمل البناء بنجاح، ستجد ملفات الـ img هنا. تذكر أن جهازك يستخدم Recovery inside Boot."
+          body: "تم استخدام نسخة Ultra Slim لتجاوز مشكلة المساحة والروابط."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
