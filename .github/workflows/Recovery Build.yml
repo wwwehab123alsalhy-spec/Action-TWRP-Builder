@@ -1,4 +1,4 @@
-name: Recovery Build FINAL FORCE
+name: Recovery Build FINAL SUCCESS
 
 on:
   workflow_dispatch:
@@ -47,18 +47,16 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Full Forced Build)
+      - name: Building recovery (Fixed Ninja Error)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # استخدام الاسم المطابق لصورك
+          # اختيار الهدف الصحيح بناءً على ملفاتك
           lunch twrp_x6835b-eng
-          # أمر التنظيف العميق لمنع رسالة no work to do
-          make clean && make mrproper
-          # أمر بناء الريكوفري مع إجبار جلب التبعيات
-          mka recoveryimage -j$(nproc --all)
-          # سطر البحث النهائي في كل مكان
+          # أمر البناء المباشر بدون mrproper الذي سبب الفشل السابق
+          make recoveryimage -j$(nproc --all)
+          # البحث والنسخ للرفع
           find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
@@ -67,9 +65,8 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-FINAL-RECOVERY-${{ github.run_id }}
+          name: TWRP-IMAGE-READY-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "إذا لم يظهر الـ img الآن، فهناك نقص في ملف BoardConfig.mk داخل المستودع."
+          body: "تم إصلاح خطأ Ninja وجاري استخراج الملف."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
