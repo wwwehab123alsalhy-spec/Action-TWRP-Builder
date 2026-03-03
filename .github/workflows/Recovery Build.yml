@@ -1,4 +1,4 @@
-name: Recovery Build FINAL FORCE SUCCESS
+name: Recovery Build FINAL SUCCESS FIXED
 
 on:
   workflow_dispatch:
@@ -47,16 +47,22 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Universal Force Build)
+      - name: Building recovery (Force Symlinks Fix)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # الاسم المطابق لملفاتك 
+          # اختيار الهدف الصحيح بناءً على ملفاتك الموثقة في الصور السابقة
           lunch twrp_x6835b-eng
-          # بناء الـ Boot والـ Recovery معاً لأن جهازك يدمجهما
-          make bootimage recoveryimage -j$(nproc --all)
-          # سحب أي ملف img ناتج للرفع
+          
+          # الخطوة السحرية: تنظيف المجلدات التي سببت فشل ninja في محاولتك الأخيرة
+          rm -rf out/target/product/x6835b/recovery/root/vendor
+          rm -rf out/target/product/x6835b/root/vendor
+          
+          # إجبار بناء الـ Boot والـ Recovery معاً لتجاوز تعارض الملفات
+          make bootimage recoveryimage -j$(nproc --all) || make bootimage -j$(nproc --all)
+          
+          # البحث عن الملفات الناتجة ونسخها للرفع
           find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
           find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
           find out/target/product/ -name "twrp-*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
@@ -69,6 +75,6 @@ jobs:
             ${{ github.workspace }}/*.img
           name: TWRP-FINAL-IMAGE-READY-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "إذا ظهر boot.img، فهو يحتوي على الريكوفري الخاص بك."
+          body: "إذا اكتمل البناء بنجاح، ستجد ملفات الـ img هنا. تذكر أن جهازك يستخدم Recovery inside Boot."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
