@@ -47,17 +47,17 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Fixed Ninja Error)
+      - name: Building recovery (Force Build)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # اختيار الهدف الصحيح بناءً على ملفاتك
+          # الاسم المطابق لملفاتك في الصورة 1000000909
           lunch twrp_x6835b-eng
-          # أمر البناء المباشر بدون mrproper الذي سبب الفشل السابق
-          make recoveryimage -j$(nproc --all)
-          # البحث والنسخ للرفع
-          find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # استخدام mka لإجبار النظام على العمل
+          mka recoveryimage -j$(nproc --all)
+          # نسخ الملفات التي يتم إنتاجها
+          cp out/target/product/x6835b/*.img ${GITHUB_WORKSPACE}/ || find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
       - name: Upload Result
@@ -65,8 +65,8 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-IMAGE-READY-${{ github.run_id }}
+          name: TWRP-FINAL-IMAGE-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "تم إصلاح خطأ Ninja وجاري استخراج الملف."
+          body: "إذا لم يظهر الملف هنا، فهناك نقص في ملفات الـ Kernel أو Fstab في الـ Device Tree."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
