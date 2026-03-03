@@ -1,4 +1,4 @@
-name: Recovery Build FINAL SUCCESS ULTRA SLIM
+name: Recovery Build FINAL IMAGE EXTRACTOR
 
 on:
   workflow_dispatch:
@@ -47,23 +47,29 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Ultra Slim Force)
+      - name: Building recovery (Full Search Mode)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
           
-          # تنظيف المجلدات المتعارضة قسرياً لمنع خطأ Symlink المتكرر
+          # تنظيف المجلدات المتعارضة برمجياً
           rm -rf out/target/product/x6835b/recovery/root/vendor
-          rm -rf out/target/product/x6835b/root/vendor
           
-          # بناء الريكوفري فقط لضمان عدم امتلاء القرص (Disk Space)
-          make recoveryimage -j$(nproc --all)
+          # بناء الريكوفري والبوت معاً لضمان إنتاج الملف
+          make bootimage recoveryimage -j$(nproc --all)
           
-          # البحث عن الملفات ونسخها للرفع (سواء كان ريكوفري أو بوت)
-          find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
-          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # رادار البحث: نسخ أي ملف img من المجلدات الرئيسية أو الفرعية
+          echo "Scanning for images..."
+          find out/target/product/x6835b/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/x6835b/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/x6835b/ -name "twrp*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          
+          # فحص أخير في مجلدات النظام العميقة إذا لم يجد الملفات أعلاه
+          if [ ! -f ${GITHUB_WORKSPACE}/boot.img ] && [ ! -f ${GITHUB_WORKSPACE}/recovery.img ]; then
+            find out/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          fi
         working-directory: .
 
       - name: Upload Result
@@ -71,8 +77,8 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-FINAL-IMAGE-SUCCESS-${{ github.run_id }}
+          name: TWRP-FINAL-IMAGE-FOUND-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "تم استخدام نسخة Ultra Slim لتجاوز مشكلة المساحة والروابط."
+          body: "إذا ظهر boot.img بحجم كبير، فهذا هو الريكوفري الخاص بك."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
