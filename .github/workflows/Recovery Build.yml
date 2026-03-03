@@ -1,4 +1,4 @@
-name: Recovery Build FINAL SUCCESS
+name: Recovery Build FINAL FORCE SUCCESS
 
 on:
   workflow_dispatch:
@@ -47,17 +47,19 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Force Build)
+      - name: Building recovery (Universal Force Build)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # الاسم المطابق لملفاتك في الصورة 1000000909
+          # الاسم المطابق لملفاتك 
           lunch twrp_x6835b-eng
-          # استخدام mka لإجبار النظام على العمل
-          mka recoveryimage -j$(nproc --all)
-          # نسخ الملفات التي يتم إنتاجها
-          cp out/target/product/x6835b/*.img ${GITHUB_WORKSPACE}/ || find out/target/product/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # بناء الـ Boot والـ Recovery معاً لأن جهازك يدمجهما
+          make bootimage recoveryimage -j$(nproc --all)
+          # سحب أي ملف img ناتج للرفع
+          find out/target/product/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/ -name "twrp-*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
       - name: Upload Result
@@ -65,8 +67,8 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-FINAL-IMAGE-${{ github.run_id }}
+          name: TWRP-FINAL-IMAGE-READY-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "إذا لم يظهر الملف هنا، فهناك نقص في ملفات الـ Kernel أو Fstab في الـ Device Tree."
+          body: "إذا ظهر boot.img، فهو يحتوي على الريكوفري الخاص بك."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
