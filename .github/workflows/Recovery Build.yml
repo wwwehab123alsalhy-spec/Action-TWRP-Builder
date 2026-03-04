@@ -1,4 +1,4 @@
-name: Recovery Build FINAL FIXED VERSION
+name: TWRP FINAL SUCCESS EXTRACTOR
 
 on:
   workflow_dispatch:
@@ -47,23 +47,22 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (The Final Push)
+      - name: Building recovery (Search and Export)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
           
-          # تنظيف أي بقايا قد تسبب تعارض الروابط الرمزية
-          rm -rf out/target/product/x6835b/recovery/root/vendor
-          rm -rf out/target/product/x6835b/root/vendor
-          
-          # بناء الـ bootimage لأن جهازك يستخدم RECOVERY_AS_BOOT
+          # بناء البوت والريكوفري
           make bootimage -j$(nproc --all) || make recoveryimage -j$(nproc --all)
           
-          # نسخ الملفات الناتجة فوراً
-          find out/target/product/x6835b/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
-          find out/target/product/x6835b/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # نسخ الملفات الناتجة إلى المجلد الخارجي ليراها GitHub Actions
+          cp out/target/product/x6835b/boot.img ${GITHUB_WORKSPACE}/ || true
+          cp out/target/product/x6835b/recovery.img ${GITHUB_WORKSPACE}/ || true
+          
+          # فحص شامل إذا ضاع الملف في مجلدات فرعية
+          find out/target/product/x6835b/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
       - name: Upload Result
@@ -72,8 +71,9 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-FINAL-SUCCESS-BUILD-${{ github.run_id }}
+          name: TWRP-RESULT-READY-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "تم البناء بعد تحديث BoardConfig وتعطيل Vendor mount."
+          body: "افحص الـ Assets بالأسفل، ستجد ملف الـ img هناك."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
