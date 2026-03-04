@@ -1,4 +1,4 @@
-name: Recovery Build FINAL RAMDISK FIX
+name: Recovery Build FINAL RE-CLEAN
 
 on:
   workflow_dispatch:
@@ -47,33 +47,34 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Emergency Ramdisk Fix)
+      - name: Building recovery (Deep Clean Build)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
           
-          # تنظيف قسري للمجلد المسبب للفشل في السطر 16829
+          # مسح شامل لضمان إعادة البناء من الصفر وتجنب "no work to do"
+          make clean
           rm -rf out/target/product/x6835b/recovery/root/vendor
-          rm -rf out/target/product/x6835b/root/vendor
           
-          # محاولة البناء مع تجاهل الخطأ في حال حدوثه لاستخراج الملفات الجزئية
-          make recoveryimage -j$(nproc --all) || echo "Build stopped but checking for files..."
+          # البدء بالبناء الحقيقي
+          make bootimage -j$(nproc --all)
           
-          # استخراج الملفات من قلب السيرفر ومن مجلدات الـ intermediates
-          find out/target/product/x6835b/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
-          find out/target/product/x6835b/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
-          find out/target/product/x6835b/obj/PACKAGING/ -name "ramdisk.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # نسخ ذكي: ينسخ فقط إذا وجد الملف ولا يسبب فشل الـ Workflow
+          echo "Scanning for images..."
+          find out/target/product/x6835b/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \; || true
+          find out/target/product/x6835b/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \; || true
         working-directory: .
 
       - name: Upload Result
         uses: softprops/action-gh-release@v2
+        if: always()
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-FINAL-RECOVERY-SUCCESS-${{ github.run_id }}
+          name: TWRP-FINAL-REBUILD-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "إذا ظهر boot.img أو recovery.img، فقد نجحت المهمة."
+          body: "إذا عاد وقت البناء لـ 40 دقيقة، فستجد الملف هنا."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
