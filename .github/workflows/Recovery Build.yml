@@ -1,4 +1,4 @@
-name: Recovery Build FINAL RE-CLEAN
+name: Recovery Build FINAL FIXED VERSION
 
 on:
   workflow_dispatch:
@@ -47,24 +47,23 @@ jobs:
         with:
           swap-size-gb: 12
 
-      - name: Building recovery (Deep Clean Build)
+      - name: Building recovery (The Final Push)
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
           
-          # مسح شامل لضمان إعادة البناء من الصفر وتجنب "no work to do"
-          make clean
+          # تنظيف أي بقايا قد تسبب تعارض الروابط الرمزية
           rm -rf out/target/product/x6835b/recovery/root/vendor
+          rm -rf out/target/product/x6835b/root/vendor
           
-          # البدء بالبناء الحقيقي
-          make bootimage -j$(nproc --all)
+          # بناء الـ bootimage لأن جهازك يستخدم RECOVERY_AS_BOOT
+          make bootimage -j$(nproc --all) || make recoveryimage -j$(nproc --all)
           
-          # نسخ ذكي: ينسخ فقط إذا وجد الملف ولا يسبب فشل الـ Workflow
-          echo "Scanning for images..."
-          find out/target/product/x6835b/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \; || true
-          find out/target/product/x6835b/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \; || true
+          # نسخ الملفات الناتجة فوراً
+          find out/target/product/x6835b/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          find out/target/product/x6835b/ -name "recovery.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
         working-directory: .
 
       - name: Upload Result
@@ -73,8 +72,8 @@ jobs:
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-FINAL-REBUILD-${{ github.run_id }}
+          name: TWRP-FINAL-SUCCESS-BUILD-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
-          body: "إذا عاد وقت البناء لـ 40 دقيقة، فستجد الملف هنا."
+          body: "تم البناء بعد تحديث BoardConfig وتعطيل Vendor mount."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
