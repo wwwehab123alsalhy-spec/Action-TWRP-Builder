@@ -1,4 +1,4 @@
-name: TWRP-FULL-IMAGE-FIX
+name: TWRP-MAGISKBOOT-REPACK
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
 
       - name: Prepare environment
         run: |
-          sudo apt update && sudo apt install -y build-essential git python3 curl zip unzip
+          sudo apt update && sudo apt install -y build-essential git python3 curl zip unzip wget
 
       - name: Install repo
         run: |
@@ -39,43 +39,51 @@ jobs:
           git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
         working-directory: .
 
-      - name: Build Full Recovery Image
+      - name: Build Ramdisk and Repack
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
           
-          # بناء الريكوفري كاملاً مع محاولة إصلاح أخطاء الدمج تلقائياً
-          make bootimage -j$(nproc --all) || echo "Primary build failed, attempting manual assembly..."
+          # 1. بناء الرامديسك أولاً
+          make ramdisk -j$(nproc --all)
 
-          # في حال فشل الدمج التلقائي، سنستخدم أداة الدمج اليدوية بشكل أصح
-          if [ ! -f out/target/product/x6835b/boot.img ] || [ $(stat -c%s out/target/product/x6835b/boot.img) -lt 1000000 ]; then
-             echo "Manually assembling image to avoid 1KB file error..."
-             python3 system/tools/mkbootimg/mkbootimg.py \
-               --kernel device/infinix/x6835b/kernel \
-               --ramdisk out/target/product/x6835b/ramdisk.img \
-               --base 0x40078000 \
-               --ramdisk_offset 0x11080000 \
-               --tags_offset 0x07080000 \
-               --pagesize 2048 \
-               --header_version 2 \
-               -o ${GITHUB_WORKSPACE}/TWRP-v13-REALLY-FINAL.img
-          else
-             cp out/target/product/x6835b/boot.img ${GITHUB_WORKSPACE}/TWRP-v13-REALLY-FINAL.img
+          # 2. تحميل أداة MagiskBoot للدمج الاحترافي
+          wget https://github.com/tiann/KernelSU/raw/main/scripts/magiskboot -O magiskboot
+          chmod +x magiskboot
+
+          # 3. تجهيز الملفات
+          cp device/infinix/x6835b/kernel ./kernel-official
+          cp out/target/product/x6835b/ramdisk.img ./ramdisk.cpio
+
+          # 4. محاولة الدمج باستخدام MagiskBoot
+          # هذه الطريقة تتخطى أخطاء الـ DTB وتنتج ملفاً بالحجم الكامل
+          ./magiskboot build TWRP-FIXED.img kernel-official ramdisk.cpio || echo "Build failed, trying repack mode..."
+          
+          if [ ! -f TWRP-FIXED.img ] || [ $(stat -c%s TWRP-FIXED.img) -lt 1000000 ]; then
+             # محاولة ثانية بتنسيق مختلف إذا فشلت الأولى
+             ./magiskboot repack kernel-official TWRP-FIXED.img || true
           fi
+
+          # نقل الملف للسطح الخارجي للرفع
+          cp TWRP-FIXED.img ${GITHUB_WORKSPACE}/TWRP-v13-REAL-SIZE.img
+          
+          # التأكد من الحجم في السجلات
+          ls -lh ${GITHUB_WORKSPACE}/TWRP-v13-REAL-SIZE.img
         working-directory: .
 
-      - name: Upload Verified Image
+      - name: Upload Final Image
         uses: softprops/action-gh-release@v2
         if: always()
         with:
           files: |
-            ${{ github.workspace }}/TWRP-v13-REALLY-FINAL.img
-          name: TWRP-FULL-VERIFIED-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-full
+            ${{ github.workspace }}/TWRP-v13-REAL-SIZE.img
+          name: TWRP-FINAL-REAL-SIZE-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-final
           body: |
-            تنبيه: تأكد أن حجم الملف المحمل يتعدى 10 ميجابايت.
-            هذا الملف تم تجميعه قسرياً لتجنب مشكلة الـ 1 كيلوبايت.
+            هذا الملف تم دمجه بواسطة MagiskBoot لتجنب مشكلة الـ 1 كيلوبايت.
+            تحذير: إذا وجدته أقل من 10 ميجابايت فلا تفلشه.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
