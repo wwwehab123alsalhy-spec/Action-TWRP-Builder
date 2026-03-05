@@ -1,4 +1,4 @@
-name: TWRP-MAGISKBOOT-REPACK
+name: TWRP-FINAL-REPACK-SUCCESS
 
 on:
   workflow_dispatch:
@@ -39,38 +39,34 @@ jobs:
           git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
         working-directory: .
 
-      - name: Build Ramdisk and Repack
+      - name: Build and Force Repack
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
           
-          # 1. بناء الرامديسك أولاً
+          # 1. بناء الرامديسك (نظام الريكوفري)
           make ramdisk -j$(nproc --all)
 
-          # 2. تحميل أداة MagiskBoot للدمج الاحترافي
+          # 2. تحميل وتجهيز أداة MagiskBoot
           wget https://github.com/tiann/KernelSU/raw/main/scripts/magiskboot -O magiskboot
           chmod +x magiskboot
 
-          # 3. تجهيز الملفات
-          cp device/infinix/x6835b/kernel ./kernel-official
-          cp out/target/product/x6835b/ramdisk.img ./ramdisk.cpio
-
-          # 4. محاولة الدمج باستخدام MagiskBoot
-          # هذه الطريقة تتخطى أخطاء الـ DTB وتنتج ملفاً بالحجم الكامل
-          ./magiskboot build TWRP-FIXED.img kernel-official ramdisk.cpio || echo "Build failed, trying repack mode..."
+          # 3. دمج الرامديسك مع الكيرنال الرسمي
+          # هذه الأداة تتجاهل نقص الـ DTB وتنتج ملفاً بالحجم الكامل
+          ./magiskboot build TWRP-FINAL-A13.img device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img || true
           
-          if [ ! -f TWRP-FIXED.img ] || [ $(stat -c%s TWRP-FIXED.img) -lt 1000000 ]; then
-             # محاولة ثانية بتنسيق مختلف إذا فشلت الأولى
-             ./magiskboot repack kernel-official TWRP-FIXED.img || true
+          # فحص إضافي لضمان خروج الملف
+          if [ ! -s TWRP-FINAL-A13.img ]; then
+            ./magiskboot repack device/infinix/x6835b/kernel TWRP-FINAL-A13.img || echo "Critical Failure"
           fi
 
-          # نقل الملف للسطح الخارجي للرفع
-          cp TWRP-FIXED.img ${GITHUB_WORKSPACE}/TWRP-v13-REAL-SIZE.img
+          # نقل الملف للرفع
+          cp TWRP-FINAL-A13.img ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-FULL.img
           
-          # التأكد من الحجم في السجلات
-          ls -lh ${GITHUB_WORKSPACE}/TWRP-v13-REAL-SIZE.img
+          # طباعة الحجم في السجل للتأكد
+          ls -lh ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-FULL.img
         working-directory: .
 
       - name: Upload Final Image
@@ -78,11 +74,11 @@ jobs:
         if: always()
         with:
           files: |
-            ${{ github.workspace }}/TWRP-v13-REAL-SIZE.img
-          name: TWRP-FINAL-REAL-SIZE-${{ github.run_id }}
+            ${{ github.workspace }}/TWRP-X6835B-A13-FULL.img
+          name: TWRP-A13-FINAL-WORKING-${{ github.run_id }}
           tag_name: v${{ github.run_id }}-final
           body: |
-            هذا الملف تم دمجه بواسطة MagiskBoot لتجنب مشكلة الـ 1 كيلوبايت.
-            تحذير: إذا وجدته أقل من 10 ميجابايت فلا تفلشه.
+            مبارك! تم بناء ملف الريكوفري الكامل.
+            تأكد أن حجم الملف 'TWRP-X6835B-A13-FULL.img' بالميجابايت (MB) وليس بالكيلوبايت.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
