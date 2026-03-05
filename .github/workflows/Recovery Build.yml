@@ -86,4 +86,3 @@ jobs:
             تحذير: إذا وجدته أقل من 10 ميجابايت فلا تفلشه.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
