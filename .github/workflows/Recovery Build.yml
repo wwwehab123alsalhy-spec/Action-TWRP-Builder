@@ -1,4 +1,4 @@
-name: TWRP-A13-ULTIMATE-MERGE
+name: TWRP-FINAL-RECOVERY-BUILDER
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
 
       - name: Prepare environment
         run: |
-          sudo apt update && sudo apt install -y build-essential git python3 curl zip unzip wget
+          sudo apt update && sudo apt install -y build-essential git python3 curl zip unzip
 
       - name: Install repo
         run: |
@@ -39,53 +39,43 @@ jobs:
           git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
         working-directory: .
 
-      - name: Building and Forcing Merge
+      - name: Build Ramdisk and Merge Boot
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
           
-          # بناء الرامديسك (عقل الريكوفري)
+          # 1. بناء الرامديسك (عقل الريكوفري)
           make ramdisk -j$(nproc --all)
 
-          # التأكد من وجود ملف الكيرنال الرسمي والرامديسك الناتج
-          echo "Checking files before merging..."
-          ls -lh device/infinix/x6835b/kernel
-          ls -lh out/target/product/x6835b/ramdisk.img
-
-          # استخدام أداة mkbootimg لدمج الكيرنال مع الرامديسك
-          # القيم مأخوذة من BoardConfig الخاص بك لأندرويد 13 (MT6765)
+          # 2. عملية الدمج اليدوي المصححة (Manual Merge)
+          # استخدمنا الأوامر التي تدعمها نسخة الأداة في سورس 12.1
           python3 system/tools/mkbootimg/mkbootimg.py \
             --kernel device/infinix/x6835b/kernel \
             --ramdisk out/target/product/x6835b/ramdisk.img \
             --base 0x40078000 \
-            --offset 0x00008000 \
             --ramdisk_offset 0x11080000 \
             --tags_offset 0x07080000 \
             --pagesize 2048 \
             --header_version 2 \
             -o ${GITHUB_WORKSPACE}/TWRP-v13-FINAL.img
 
-          # فحص حجم الملف الناتج - إذا كان 0 بايت سنحاول طريقة بديلة
-          if [ ! -s ${GITHUB_WORKSPACE}/TWRP-v13-FINAL.img ]; then
-            echo "Primary merge failed, trying backup copy..."
-            cp out/target/product/x6835b/ramdisk.img ${GITHUB_WORKSPACE}/ramdisk-only.img
-          fi
+          # 3. نسخ الرامديسك كاحتياط
+          cp out/target/product/x6835b/ramdisk.img ${GITHUB_WORKSPACE}/ramdisk-recovery.img
         working-directory: .
 
-      - name: Upload Recovery
+      - name: Upload Final Files
         uses: softprops/action-gh-release@v2
         if: always()
         with:
           files: |
             ${{ github.workspace }}/TWRP-v13-FINAL.img
-            ${{ github.workspace }}/ramdisk-only.img
-          name: TWRP-FINAL-A13-SUCCESS-${{ github.run_id }}
+            ${{ github.workspace }}/ramdisk-recovery.img
+          name: TWRP-SUCCESS-A13-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
           body: |
-            مبارك! تم دمج الريكوفري بنجاح.
-            الملف الأساسي: TWRP-v13-FINAL.img
-            إذا وجدته، فقم بتفليشه فوراً.
+            مبارك! هذا هو ملف البوت المعدل (TWRP-v13-FINAL.img).
+            الملف جاهز للتفليش عبر Fastboot.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
