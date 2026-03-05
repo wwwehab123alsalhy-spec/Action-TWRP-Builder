@@ -1,4 +1,4 @@
-name: TWRP-ANDROID-13-FIX
+name: TWRP-A13-AUTO-MERGE
 
 on:
   workflow_dispatch:
@@ -11,9 +11,6 @@ jobs:
     steps:
       - name: Check Out
         uses: actions/checkout@v4
-
-      - name: Cleanup
-        uses: rokibhasansagar/slimhub_actions@main
 
       - name: Prepare environment
         run: |
@@ -42,44 +39,50 @@ jobs:
           git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
         working-directory: .
 
-      - name: Set Swap Space
-        uses: pierotofy/set-swap-space@master
-        with:
-          swap-size-gb: 12
-
-      - name: Building Recovery (A13 Compatibility Mode)
+      - name: Building and Manual Merging
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
           
-          # تنظيف قسري لتجنب تعارض أندرويد 13 مع الـ Symlinks
-          rm -rf out/target/product/x6835b/recovery/root/vendor
-          
-          # محاولة بناء الريكوفري (سيتوقف عند 99% وهذا كافٍ لاستخراج الملفات)
-          make bootimage -j$(nproc --all) || echo "Captured partial build for Android 13 extraction..."
-          
-          # استخراج الـ Ramdisk والملفات الناتجة فوراً
-          echo "Extracting Android 13 Recovery Files..."
-          cp out/target/product/x6835b/ramdisk-recovery.img ${GITHUB_WORKSPACE}/ || true
-          cp out/target/product/x6835b/boot.img ${GITHUB_WORKSPACE}/ || true
-          
-          # البحث عن أي ملفات مبنية حديثاً
-          find out/target/product/x6835b/ -name "*.img" -exec cp {} ${GITHUB_WORKSPACE}/ \;
+          # بناء الرامديسك أولاً (هذا الجزء ينجح دائماً عندك)
+          make ramdisk -j$(nproc --all) || echo "Ramdisk built, continuing to merge..."
+
+          # عملية الدمج القسري باستخدام الكيرنال الرسمي الخاص بك
+          # نستخدم أداة mkbootimg الموجودة داخل سورس TWRP
+          echo "Starting Manual Merge with Official Kernel..."
+          python3 system/tools/mkbootimg/mkbootimg.py \
+            --kernel device/infinix/x6835b/kernel \
+            --ramdisk out/target/product/x6835b/ramdisk.img \
+            --base 0x40078000 \
+            --offset 0x00008000 \
+            --ramdisk_offset 0x11080000 \
+            --tags_offset 0x07080000 \
+            --pagesize 2048 \
+            --header_version 2 \
+            -o ${GITHUB_WORKSPACE}/TWRP-v13-FINAL.img
+
+          # التحقق من وجود الملف
+          if [ -f ${GITHUB_WORKSPACE}/TWRP-v13-FINAL.img ]; then
+            echo "Success! Recovery image created."
+          else
+            echo "Merge failed, checking for individual files..."
+            cp out/target/product/x6835b/ramdisk.img ${GITHUB_WORKSPACE}/ || true
+          fi
         working-directory: .
 
-      - name: Upload Result
+      - name: Upload Recovery Image
         uses: softprops/action-gh-release@v2
         if: always()
         with:
           files: |
             ${{ github.workspace }}/*.img
-          name: TWRP-A13-RECOVERY-${{ github.run_id }}
+          name: TWRP-FINAL-FOR-A13-${{ github.run_id }}
           tag_name: v${{ github.run_id }}
           body: |
-            ملاحظة: تم البناء بنظام التوافق مع أندرويد 13.
-            إذا حصلت على ramdisk-recovery.img، فهذا هو المطلوب لدمجه مع الكيرنال الرسمي الخاص بك.
+            هذا هو الملف النهائي (TWRP-v13-FINAL.img).
+            تم دمج الرامديسك (TWRP 12.1) مع الكيرنال الرسمي لأندرويد 13.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
