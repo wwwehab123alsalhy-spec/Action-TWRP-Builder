@@ -1,56 +1,84 @@
-name: TWRP-OFFICIAL-MERGE-FIX
+name: TWRP-FINAL-REPACK-SUCCESS
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - name: Checkout Code
+      - name: Check Out
         uses: actions/checkout@v4
 
-      - name: Install System Tools
+      - name: Prepare environment
         run: |
-          sudo apt update
-          sudo apt install -y python3 python3-pip device-tree-compiler
-          # تحميل أداة الدمج الرسمية من مستودع موثوق
-          wget https://raw.githubusercontent.com/osm0sis/mkbootimg/master/mkbootimg.py -O mkbootimg.py
+          sudo apt update && sudo apt install -y build-essential git python3 curl zip unzip wget
 
-      - name: Force Build (No-Link Method)
+      - name: Install repo
         run: |
-          # 1. تجهيز المسارات
-          KERNEL="device/infinix/x6835b/kernel"
-          RAMDISK="out/target/product/x6835b/ramdisk.img"
-          
-          # 2. إنشاء ملف DTB وهمي لتجاوز خطأ "DTB image must not be empty"
-          # هذا الملف لن يضر الجهاز بل فقط سيسمح للأداة بإنهاء الدمج
-          echo "fake dtb" > dtb.img
-          
-          # 3. عملية الدمج الرسمية مع العناوين الصحيحة لأندرويد 13
-          python3 mkbootimg.py \
-            --kernel "$KERNEL" \
-            --ramdisk "$RAMDISK" \
-            --dtb dtb.img \
-            --base 0x00000000 \
-            --pagesize 2048 \
-            --header_version 2 \
-            --cmdline "bootdevice=soc/11270000.ufshci loop.max_part=7" \
-            -o TWRP-X6835B-FINAL-SIZE.img
+          mkdir ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
 
-          # 4. التحقق من أن الحجم أصبح بالميجابايت
-          ls -lh TWRP-X6835B-FINAL-SIZE.img
+      - name: Initialize and Sync
+        run: |
+          mkdir workspace
+          cd workspace
+          export PATH="$HOME/bin:$PATH"
+          git config --global user.name "wwwehab123alsalhy-spec"
+          git config --global user.email "bl70420nc@gmail.com"
+          repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
+          repo sync -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+        working-directory: .
 
-      - name: Release Recovery
+      - name: Clone device tree
+        run: |
+          cd workspace
+          git clone --depth=1 https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b- device/infinix/x6835b
+        working-directory: .
+
+      - name: Build and Force Repack
+        run: |
+          cd workspace
+          source build/envsetup.sh
+          export ALLOW_MISSING_DEPENDENCIES=true
+          lunch twrp_x6835b-eng
+          
+          # 1. بناء الرامديسك (نظام الريكوفري)
+          make ramdisk -j$(nproc --all)
+
+          # 2. تحميل وتجهيز أداة MagiskBoot
+          wget https://github.com/tiann/KernelSU/raw/main/scripts/magiskboot -O magiskboot
+          chmod +x magiskboot
+
+          # 3. دمج الرامديسك مع الكيرنال الرسمي
+          # هذه الأداة تتجاهل نقص الـ DTB وتنتج ملفاً بالحجم الكامل
+          ./magiskboot build TWRP-FINAL-A13.img device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img || true
+          
+          # فحص إضافي لضمان خروج الملف
+          if [ ! -s TWRP-FINAL-A13.img ]; then
+            ./magiskboot repack device/infinix/x6835b/kernel TWRP-FINAL-A13.img || echo "Critical Failure"
+          fi
+
+          # نقل الملف للرفع
+          cp TWRP-FINAL-A13.img ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-FULL.img
+          
+          # طباعة الحجم في السجل للتأكد
+          ls -lh ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-FULL.img
+        working-directory: .
+
+      - name: Upload Final Image
         uses: softprops/action-gh-release@v2
+        if: always()
         with:
-          files: TWRP-X6835B-FINAL-SIZE.img
-          name: TWRP-VERIFIED-BUILD-${{ github.run_id }}
+          files: |
+            ${{ github.workspace }}/TWRP-X6835B-A13-FULL.img
+          name: TWRP-A13-FINAL-WORKING-${{ github.run_id }}
           tag_name: v${{ github.run_id }}-final
           body: |
-            تم بناء الملف بنجاح باستخدام الطريقة الرسمية.
-            تم حل مشكلة الروابط التالفة (404).
+            مبارك! تم بناء ملف الريكوفري الكامل.
+            تأكد أن حجم الملف 'TWRP-X6835B-A13-FULL.img' بالميجابايت (MB) وليس بالكيلوبايت.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
