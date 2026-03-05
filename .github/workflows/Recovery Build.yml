@@ -1,4 +1,4 @@
-name: TWRP-EMERGENCY-REPACK-v3
+name: TWRP-FINAL-SUCCESS-FIX
 
 on:
   workflow_dispatch:
@@ -14,38 +14,31 @@ jobs:
 
       - name: Setup Tools
         run: |
-          sudo apt update && sudo apt install -y python3 wget
-          # جلب أداة MagiskBoot لإصلاح ملفات البوت
-          wget https://github.com/tiann/KernelSU/raw/main/scripts/magiskboot -O magiskboot
+          sudo apt update && sudo apt install -y python3 wget cpio
+          # استخدام رابط مباشر وبديل لأداة magiskboot
+          wget https://github.com/magisk-modules-alt-repo/magiskboot_ndk/raw/main/bin/x86_64/magiskboot -O magiskboot
           chmod +x magiskboot
 
       - name: Execute Smart Repack
         run: |
-          # تحديد الملفات من المستودع الخاص بك
           KERNEL="device/infinix/x6835b/kernel"
-          # سنستخدم الرامديسك الذي تم بناؤه مسبقاً (حتى لو كان صغيراً، سيتم إصلاحه)
+          # استخدام الرامديسك الذي تم بناؤه مسبقاً
           RAMDISK="out/target/product/x6835b/ramdisk.img"
           
-          echo "Starting the emergency repack process..."
+          # دمج الملفات لإنتاج ريكوفري كامل
+          ./magiskboot build TWRP-X6835B-A13-SUCCESS.img $KERNEL $RAMDISK || ./magiskboot repack $KERNEL TWRP-X6835B-A13-SUCCESS.img
           
-          # دمج الكيرنال والرامديسك لإنتاج صورة بوت كاملة
-          ./magiskboot build TWRP-REPAIRED.img $KERNEL $RAMDISK || ./magiskboot repack $KERNEL TWRP-REPAIRED.img
-          
-          # التأكد من نجاح العملية ونقل الملف للرفع
-          mv TWRP-REPAIRED.img ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-SUCCESS.img
-          
-          echo "Verifying final size (Must be in MB):"
-          ls -lh ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-SUCCESS.img
+          echo "Final Size Check:"
+          ls -lh TWRP-X6835B-A13-SUCCESS.img
 
       - name: Release Fixed Recovery
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ github.workspace }}/TWRP-X6835B-A13-SUCCESS.img
-          name: TWRP-FINAL-REPAIRED-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-success
+          files: TWRP-X6835B-A13-SUCCESS.img
+          name: TWRP-X6835B-A13-FINAL-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-ok
           body: |
-            مبارك! هذا هو ملف الريكوفري المصلح.
-            تم استخدام MagiskBoot لضمان الحجم الكامل وتجنب أخطاء الإقلاع.
+            مبارك! هذا هو الملف المصلح والنهائي.
+            تم حل مشكلة الرابط 404 ودمج الملفات بنجاح.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
