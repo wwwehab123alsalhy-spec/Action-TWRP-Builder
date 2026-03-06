@@ -1,62 +1,60 @@
-name: TWRP-RAMDISK-VERIFY-AND-FIX
+name: TWRP-REBOOT-TRUE-BUILD
 
 on:
   workflow_dispatch:
 
 jobs:
-  verify_and_build:
-    runs-on: ubuntu-latest
+  full_build:
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify Ramdisk Content
+      - name: Preparation
         run: |
-          RAMDISK="out/target/product/x6835b/ramdisk.img"
-          
-          if [ ! -f "$RAMDISK" ]; then
-            echo "الخطأ: ملف الرامديسك غير موجود نهائياً في المسار!"
-            exit 1
-          fi
+          sudo apt update
+          sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev
 
-          # فحص إذا كان الملف يحتوي على بيانات (ليس أصفار فقط)
-          SIZE=$(du -b "$RAMDISK" | cut -f1)
-          if [ "$SIZE" -lt 10000 ]; then
-            echo "التحذير: الملف حجمه صغير جداً ($SIZE بايت)، يبدو أنه فارغ فعلاً!"
-            exit 1
-          fi
-          
-          echo "الرامديسك يبدو سليماً بحجم: $SIZE بايت. جاري البدء بالدمج..."
-
-      - name: Setup MagiskBoot
+      - name: Sync Source
         run: |
+          mkdir ~/bin && curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo && chmod a+x ~/bin/repo
+          export PATH=$PATH:~/bin
+          mkdir workspace && cd workspace
+          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
+          repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
+
+      - name: Clone Device Tree
+        run: |
+          cd workspace
+          # استخدام رابط حسابك الشخصي الصحيح
+          git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
+
+      - name: Build Recovery
+        run: |
+          cd workspace
+          source build/envsetup.sh
+          export ALLOW_MISSING_DEPENDENCIES=true
+          lunch twrp_x6835b-eng
+          # هذا هو الأمر الذي سيصنع الرامديسك الحقيقي (ANDROID!)
+          make recoveryimage -j$(nproc)
+
+      - name: Professional Packaging
+        run: |
+          cd workspace
           wget https://github.com/magisk-modules-alt-repo/magiskboot_ndk/raw/main/bin/x86_64/magiskboot
           chmod +x magiskboot
+          # الدمج الرسمي باستخدام الكيرنال والرامديسك الجديد الموثوق
+          ./magiskboot build TWRP-X6835B-REAL-V5.img device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img
+          cp TWRP-X6835B-REAL-V5.img ${GITHUB_WORKSPACE}/
 
-      - name: Build with Header Fix
-        run: |
-          KERNEL="device/infinix/x6835b/kernel"
-          RAMDISK="out/target/product/x6835b/ramdisk.img"
-          
-          # استخدام magiskboot يضمن وضع توقيع ANDROID! الحقيقي
-          ./magiskboot build TWRP-VERIFIED-V4.img $KERNEL $RAMDISK
-          
-          # حشو الملف ليكون 32MB ليتناسب مع Infinix
-          truncate -s 32M TWRP-VERIFIED-V4.img
-          
-          # فحص نهائي لوجود التوقيع
-          head -c 8 TWRP-VERIFIED-V4.img | grep -a "ANDROID!" && echo "Success: Android Signature Found!"
-
-      - name: Release Verified Image
+      - name: Final Release
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-VERIFIED-V4.img
-          name: TWRP-FINAL-CHECKED-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-verified
-          body: |
-            تم فحص الرامديسك قبل الدمج.
-            تم إضافة توقيع ANDROID! لضمان الإقلاع.
+          files: TWRP-X6835B-REAL-V5.img
+          name: TWRP-REAL-FINAL-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-final
+          body: "الملف الناتج الآن يحتوي على رامديسك حقيقي تم بناؤه من الصفر."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
