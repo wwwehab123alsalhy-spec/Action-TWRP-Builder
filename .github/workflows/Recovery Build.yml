@@ -1,4 +1,4 @@
-name: TWRP-FULL-SOURCE-BUILD-A13
+name: TWRP-FINAL-REPAIR-BUILD-V3
 
 on:
   workflow_dispatch:
@@ -17,54 +17,53 @@ jobs:
           sudo apt update
           sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
 
-      - name: Install Repo Tool
+      - name: Setup Repo
         run: |
           mkdir ~/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
           chmod a+x ~/bin/repo
           sudo ln -sf ~/bin/repo /usr/bin/repo
 
-      - name: Initialize and Sync Source
+      - name: Initialize Source
         run: |
           mkdir workspace
           cd workspace
-          # استخدام سورس 12.1 لبناء ريكوفري متوافق مع أندرويد 13
+          # استخدام سورس 12.1 المتوافق مع أجهزة Infinix A13
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
-          # التحميل الكامل (قد يستغرق أكثر من ساعة)
           repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
 
-      - name: Clone Device Tree
+      - name: Clone Your Device Tree
         run: |
           cd workspace
-          git clone https://github.com/wehab123alsalhy-spec/Action-TWRP-Builder.git device/infinix/x6835b
+          # استخدام رابط حسابك الشخصي الذي زودتني به
+          git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
 
-      - name: Build TWRP Recovery
+      - name: Build Recovery Image
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
-          # بناء الريكوفري الفعلي من الأكواد
           lunch twrp_x6835b-eng
           make recoveryimage -j$(nproc)
 
-      - name: Final Repack with MagiskBoot
+      - name: Final Success Packaging
         run: |
           cd workspace
-          # جلب أداة magiskboot لدمج الكيرنال الأصلي مع الرامديسك الجديد
+          # جلب أداة الدمج لضمان وجود الهيدر ANDROID!
           wget https://github.com/magisk-modules-alt-repo/magiskboot_ndk/raw/main/bin/x86_64/magiskboot
           chmod +x magiskboot
-          ./magiskboot build TWRP-X6835B-A13-REAL.img device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img
-          cp TWRP-X6835B-A13-REAL.img ${GITHUB_WORKSPACE}/
+          ./magiskboot build TWRP-X6835B-A13-REAL-V3.img device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img
+          cp TWRP-X6835B-A13-REAL-V3.img ${GITHUB_WORKSPACE}/
 
-      - name: Upload Real Recovery
+      - name: Upload Verified Image
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-X6835B-A13-REAL.img
-          name: TWRP-REAL-BUILD-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-real
+          files: TWRP-X6835B-A13-REAL-V3.img
+          name: TWRP-FINAL-A13-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-final
           body: |
-            تم البناء من السورس الكامل (Full Source Build).
-            هذا الملف يحتوي على توقيع أندرويد الحقيقي وجاهز للتفليش.
+            تم البناء بنجاح باستخدام مستودعك الشخصي.
+            الملف يحتوي على توقيع أندرويد الحقيقي (ANDROID!).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
