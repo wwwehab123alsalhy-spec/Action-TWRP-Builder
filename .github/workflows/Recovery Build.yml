@@ -1,10 +1,10 @@
-name: TWRP-X6835B-SUCCESS-FINAL
+name: TWRP-BOOT-INTEGRATED-X6835B
 
 on:
   workflow_dispatch:
 
 jobs:
-  full_build:
+  build_boot:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -12,46 +12,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Preparation
+      - name: Sync and Build
         run: |
-          sudo apt update
-          sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev
-
-      - name: Sync Source
-        run: |
+          sudo apt update && sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev
           mkdir ~/bin && curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo && chmod a+x ~/bin/repo
           export PATH=$PATH:~/bin
           mkdir workspace && cd workspace
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
-
-      - name: Clone Device Tree
-        run: |
-          cd workspace
           git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
-
-      - name: Build Recovery Image
-        run: |
-          cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
-          # بناء الريكوفري الرسمي - السيرفر سيقوم بدمجه تلقائياً
-          make recoveryimage -j$(nproc)
-          
-          # نسخ الملف الناتج مباشرة من مجلد المخرجات الرسمي لضمان الجودة
-          cp out/target/product/x6835b/recovery.img ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-FINAL.img
+          # بناء ملف البوت المدمج بدلاً من ريكوفري منفصل
+          make bootimage -j$(nproc)
 
-      - name: Release Final Image
+      - name: Final Search and Label
+        run: |
+          cd workspace
+          # البحث عن ملف البوت الناتج الذي يحتوي على الريكوفري مدمجاً
+          find out/target/product/x6835b/ -name "boot.img" -exec cp {} ${GITHUB_WORKSPACE}/TWRP-IN-BOOT-X6835B.img \;
+          ls -lh ${GITHUB_WORKSPACE}/TWRP-IN-BOOT-X6835B.img
+
+      - name: Release Integrated Boot
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-X6835B-A13-FINAL.img
-          name: TWRP-FINAL-SUCCESS-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-final
+          files: TWRP-IN-BOOT-X6835B.img
+          name: TWRP-BOOT-X6835B-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-boot
           body: |
-            مبروك! هذا هو ملف الريكوفري النهائي.
-            تم بناؤه ودمجه بالكامل باستخدام أدوات أندرويد الرسمية.
-            الحجم والمحتوى مطابق لمعايير Infinix X6835B.
+            هذا الملف هو Boot Image يحتوي على TWRP مدمجاً.
+            طريقة التفليش: fastboot flash boot TWRP-IN-BOOT-X6835B.img
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
