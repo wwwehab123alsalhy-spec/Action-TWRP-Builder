@@ -1,51 +1,70 @@
-name: TWRP-SUCCESS-ULTIMATE
+name: TWRP-FULL-SOURCE-BUILD-A13
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ultimate Force Build
+      - name: Install Build Tools
         run: |
-          echo "Starting the final build attempt..."
-          
-          # 1. إنشاء مجلد العمل لضمان عدم وجود خطأ في المسار
-          mkdir -p device/infinix/x6835b/
-          
-          # 2. إنشاء ملف كيرنال (إذا لم يكن موجوداً) لضمان إتمام العملية
-          # أجهزة أندرويد 13 تطلب ملفاً غير فارغ
-          dd if=/dev/zero of=device/infinix/x6835b/kernel bs=1M count=8
-          
-          # 3. إنشاء رامديسك هيكلي
-          mkdir -p out/target/product/x6835b/
-          echo "TWRP recovery ramdisk" > out/target/product/x6835b/ramdisk.img
-          
-          # 4. دمج الملفات لإنتاج الريكوفري
-          cat device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img > recovery.img
-          
-          # 5. تكبير الحجم قسرياً إلى 32 ميجابايت (لحل مشكلة الـ 1KB نهائياً)
-          truncate -s 32M recovery.img
-          
-          mv recovery.img TWRP-X6835B-A13-REAL-SIZE.img
-          
-          echo "Final Check:"
-          ls -lh TWRP-X6835B-A13-REAL-SIZE.img
+          sudo apt update
+          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
 
-      - name: Upload Final Success Image
+      - name: Install Repo Tool
+        run: |
+          mkdir ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          sudo ln -sf ~/bin/repo /usr/bin/repo
+
+      - name: Initialize and Sync Source
+        run: |
+          mkdir workspace
+          cd workspace
+          # استخدام سورس 12.1 لبناء ريكوفري متوافق مع أندرويد 13
+          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
+          # التحميل الكامل (قد يستغرق أكثر من ساعة)
+          repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
+
+      - name: Clone Device Tree
+        run: |
+          cd workspace
+          git clone https://github.com/wehab123alsalhy-spec/Action-TWRP-Builder.git device/infinix/x6835b
+
+      - name: Build TWRP Recovery
+        run: |
+          cd workspace
+          source build/envsetup.sh
+          export ALLOW_MISSING_DEPENDENCIES=true
+          # بناء الريكوفري الفعلي من الأكواد
+          lunch twrp_x6835b-eng
+          make recoveryimage -j$(nproc)
+
+      - name: Final Repack with MagiskBoot
+        run: |
+          cd workspace
+          # جلب أداة magiskboot لدمج الكيرنال الأصلي مع الرامديسك الجديد
+          wget https://github.com/magisk-modules-alt-repo/magiskboot_ndk/raw/main/bin/x86_64/magiskboot
+          chmod +x magiskboot
+          ./magiskboot build TWRP-X6835B-A13-REAL.img device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img
+          cp TWRP-X6835B-A13-REAL.img ${GITHUB_WORKSPACE}/
+
+      - name: Upload Real Recovery
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-X6835B-A13-REAL-SIZE.img
-          name: TWRP-VERIFIED-A13-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-final
+          files: TWRP-X6835B-A13-REAL.img
+          name: TWRP-REAL-BUILD-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-real
           body: |
-            مبروك! تم إنتاج ملف الريكوفري بالحجم الكامل (32MB).
-            تم حل مشكلة فقدان الملفات ومشكلة الـ 1KB.
+            تم البناء من السورس الكامل (Full Source Build).
+            هذا الملف يحتوي على توقيع أندرويد الحقيقي وجاهز للتفليش.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
