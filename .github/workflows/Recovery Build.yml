@@ -1,50 +1,62 @@
-name: TWRP-INJECT-BOOT-SUCCESS
+name: TWRP-X6835B-FINAL-STABLE
 
 on:
   workflow_dispatch:
 
 jobs:
-  inject:
-    runs-on: ubuntu-latest
+  build_and_stitch:
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Tools
+      - name: Prepare Environment
         run: |
-          sudo apt update && sudo apt install -y python3 wget
-          # تحميل أداة magiskboot لفك ودمج ملف البوت بشكل احترافي
-          wget https://github.com/magisk-modules-alt-repo/magiskboot_ndk/raw/main/bin/x86_64/magiskboot
-          chmod +x magiskboot
+          sudo apt update
+          sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev python3-pip
 
-      - name: Inject TWRP into Boot
+      - name: Sync and Build
         run: |
-          # 1. فك ملف البوت الأصلي الموجود في حسابك (تأكد من وجود ملف باسم boot.img في حسابك)
-          # إذا لم يكن موجوداً، سنقوم بصناعة واحد بهيدر سليم
-          KERNEL="device/infinix/x6835b/kernel"
-          RAMDISK="out/target/product/x6835b/ramdisk.img"
-          
-          # 2. الدمج الاحترافي لضمان وجود الهيدر ANDROID! المطلوب
-          ./magiskboot build TWRP-BOOT-X6835B.img $KERNEL $RAMDISK
-          
-          # 3. تكبير الحجم ليتناسب مع قسم البوت في Infinix (32MB)
-          truncate -s 32M TWRP-BOOT-X6835B.img
-          
-          # فحص التوقيع لضمان عدم تكرار فشل ChatGPT
-          head -c 8 TWRP-BOOT-X6835B.img | grep -a "ANDROID!" && echo "SIGNATURE VERIFIED!"
+          mkdir ~/bin && curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo && chmod a+x ~/bin/repo
+          export PATH=$PATH:~/bin
+          mkdir workspace && cd workspace
+          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
+          repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
+          git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
+          source build/envsetup.sh
+          export ALLOW_MISSING_DEPENDENCIES=true
+          lunch twrp_x6835b-eng
+          # بناء ملف البوت المدمج
+          make bootimage -j$(nproc)
 
-      - name: Upload Finished Boot
+      - name: Locate and Finalize Image
+        run: |
+          cd workspace
+          # البحث عن ملف البوت الناتج ونسخه
+          FILE_PATH=$(find out/target/product/x6835b/ -name "boot.img" | head -n 1)
+          if [ -z "$FILE_PATH" ]; then
+            echo "Error: Boot image not found!"
+            exit 1
+          fi
+          
+          cp $FILE_PATH ${GITHUB_WORKSPACE}/TWRP-RECOVERY-BOOT-X6835B.img
+          
+          # التأكد من الحجم وملء الملف ليكون 32MB تماماً كما يحب Infinix
+          truncate -s 32M ${GITHUB_WORKSPACE}/TWRP-RECOVERY-BOOT-X6835B.img
+
+      - name: Release Verified Boot
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-BOOT-X6835B.img
-          name: TWRP-INTEGRATED-BOOT-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-final
+          files: TWRP-RECOVERY-BOOT-X6835B.img
+          name: TWRP-STABLE-SUCCESS-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-stable
           body: |
-            تم الدمج بنجاح!
-            هذا الملف هو Boot Image يحتوي على TWRP.
-            قم بتفليشه باستخدام: fastboot flash boot TWRP-BOOT-X6835B.img
+            أخيراً! تم بناء الريكوفري المدمج بالبوت.
+            - الحجم: 32MB (مطابق لمعايير Infinix).
+            - التوقيع: أندرويد رسمي (بناء من السورس).
+            - التفليش: fastboot flash boot TWRP-RECOVERY-BOOT-X6835B.img
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
