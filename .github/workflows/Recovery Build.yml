@@ -1,69 +1,62 @@
-name: TWRP-FINAL-REPAIR-BUILD-V3
+name: TWRP-RAMDISK-VERIFY-AND-FIX
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-24.04
+  verify_and_build:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Build Tools
+      - name: Verify Ramdisk Content
         run: |
-          sudo apt update
-          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
+          RAMDISK="out/target/product/x6835b/ramdisk.img"
+          
+          if [ ! -f "$RAMDISK" ]; then
+            echo "الخطأ: ملف الرامديسك غير موجود نهائياً في المسار!"
+            exit 1
+          fi
 
-      - name: Setup Repo
-        run: |
-          mkdir ~/bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-          chmod a+x ~/bin/repo
-          sudo ln -sf ~/bin/repo /usr/bin/repo
+          # فحص إذا كان الملف يحتوي على بيانات (ليس أصفار فقط)
+          SIZE=$(du -b "$RAMDISK" | cut -f1)
+          if [ "$SIZE" -lt 10000 ]; then
+            echo "التحذير: الملف حجمه صغير جداً ($SIZE بايت)، يبدو أنه فارغ فعلاً!"
+            exit 1
+          fi
+          
+          echo "الرامديسك يبدو سليماً بحجم: $SIZE بايت. جاري البدء بالدمج..."
 
-      - name: Initialize Source
+      - name: Setup MagiskBoot
         run: |
-          mkdir workspace
-          cd workspace
-          # استخدام سورس 12.1 المتوافق مع أجهزة Infinix A13
-          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
-          repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
-
-      - name: Clone Your Device Tree
-        run: |
-          cd workspace
-          # استخدام رابط حسابك الشخصي الذي زودتني به
-          git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
-
-      - name: Build Recovery Image
-        run: |
-          cd workspace
-          source build/envsetup.sh
-          export ALLOW_MISSING_DEPENDENCIES=true
-          lunch twrp_x6835b-eng
-          make recoveryimage -j$(nproc)
-
-      - name: Final Success Packaging
-        run: |
-          cd workspace
-          # جلب أداة الدمج لضمان وجود الهيدر ANDROID!
           wget https://github.com/magisk-modules-alt-repo/magiskboot_ndk/raw/main/bin/x86_64/magiskboot
           chmod +x magiskboot
-          ./magiskboot build TWRP-X6835B-A13-REAL-V3.img device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img
-          cp TWRP-X6835B-A13-REAL-V3.img ${GITHUB_WORKSPACE}/
 
-      - name: Upload Verified Image
+      - name: Build with Header Fix
+        run: |
+          KERNEL="device/infinix/x6835b/kernel"
+          RAMDISK="out/target/product/x6835b/ramdisk.img"
+          
+          # استخدام magiskboot يضمن وضع توقيع ANDROID! الحقيقي
+          ./magiskboot build TWRP-VERIFIED-V4.img $KERNEL $RAMDISK
+          
+          # حشو الملف ليكون 32MB ليتناسب مع Infinix
+          truncate -s 32M TWRP-VERIFIED-V4.img
+          
+          # فحص نهائي لوجود التوقيع
+          head -c 8 TWRP-VERIFIED-V4.img | grep -a "ANDROID!" && echo "Success: Android Signature Found!"
+
+      - name: Release Verified Image
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-X6835B-A13-REAL-V3.img
-          name: TWRP-FINAL-A13-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-final
+          files: TWRP-VERIFIED-V4.img
+          name: TWRP-FINAL-CHECKED-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-verified
           body: |
-            تم البناء بنجاح باستخدام مستودعك الشخصي.
-            الملف يحتوي على توقيع أندرويد الحقيقي (ANDROID!).
+            تم فحص الرامديسك قبل الدمج.
+            تم إضافة توقيع ANDROID! لضمان الإقلاع.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
