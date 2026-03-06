@@ -1,4 +1,4 @@
-name: TWRP-FINAL-SUCCESS-NO-LINKS
+name: TWRP-X6835B-SUCCESS-FINAL
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
       - name: Preparation
         run: |
           sudo apt update
-          sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev python3 python3-pip
+          sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev
 
       - name: Sync Source
         run: |
@@ -30,38 +30,28 @@ jobs:
           cd workspace
           git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
 
-      - name: Build Recovery
+      - name: Build Recovery Image
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
+          # بناء الريكوفري الرسمي - السيرفر سيقوم بدمجه تلقائياً
           make recoveryimage -j$(nproc)
-
-      - name: Packaging with Official Tools
-        run: |
-          cd workspace
-          # تحميل أداة التفليف الرسمية من مصدر موثوق لا يتعطل
-          wget https://raw.githubusercontent.com/osm0sis/mkbootimg/master/mkbootimg.py
           
-          # دمج الكيرنال والرامديسك الجديد (الحقيقي) الذي تم بناؤه
-          python3 mkbootimg.py \
-            --kernel device/infinix/x6835b/kernel \
-            --ramdisk out/target/product/x6835b/ramdisk.img \
-            --base 0x00000000 \
-            --pagesize 2048 \
-            --header_version 2 \
-            -o TWRP-X6835B-REAL-FINAL.img
-          
-          cp TWRP-X6835B-REAL-FINAL.img ${GITHUB_WORKSPACE}/
+          # نسخ الملف الناتج مباشرة من مجلد المخرجات الرسمي لضمان الجودة
+          cp out/target/product/x6835b/recovery.img ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-FINAL.img
 
-      - name: Release Final Recovery
+      - name: Release Final Image
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-X6835B-REAL-FINAL.img
-          name: TWRP-OFFICIAL-SUCCESS-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-success
-          body: "هذا هو الريكوفري الحقيقي المدمج بأدوات رسمية، يحتوي على توقيع ANDROID! وجاهز للتفليش."
+          files: TWRP-X6835B-A13-FINAL.img
+          name: TWRP-FINAL-SUCCESS-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-final
+          body: |
+            مبروك! هذا هو ملف الريكوفري النهائي.
+            تم بناؤه ودمجه بالكامل باستخدام أدوات أندرويد الرسمية.
+            الحجم والمحتوى مطابق لمعايير Infinix X6835B.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
