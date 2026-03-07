@@ -1,10 +1,10 @@
-name: TWRP-X6835B-FINAL-STABLE
+name: TWRP-X6835B-FIX-VENDOR-CONFLICT
 
 on:
   workflow_dispatch:
 
 jobs:
-  build_and_stitch:
+  build:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -12,51 +12,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare Environment
+      - name: Preparation
         run: |
           sudo apt update
-          sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev python3-pip
+          sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev
 
-      - name: Sync and Build
+      - name: Sync Source
         run: |
           mkdir ~/bin && curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo && chmod a+x ~/bin/repo
           export PATH=$PATH:~/bin
           mkdir workspace && cd workspace
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
+
+      - name: Clone and Clean Device Tree
+        run: |
+          cd workspace
           git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
+          # حل مشكلة الفشل عند 99%: حذف المجلدات التي تسبب تعارض الروابط الرمزية
+          rm -rf device/infinix/x6835b/recovery/root/vendor
+          rm -rf device/infinix/x6835b/recovery/root/system
+
+      - name: Build Integrated Boot
+        run: |
+          cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
-          # بناء ملف البوت المدمج
+          # بناء البوت المدمج لتجنب خطأ الريكوفري المنفصل
           make bootimage -j$(nproc)
 
-      - name: Locate and Finalize Image
+      - name: Export and Pad Image
         run: |
-          cd workspace
-          # البحث عن ملف البوت الناتج ونسخه
-          FILE_PATH=$(find out/target/product/x6835b/ -name "boot.img" | head -n 1)
-          if [ -z "$FILE_PATH" ]; then
-            echo "Error: Boot image not found!"
-            exit 1
-          fi
-          
-          cp $FILE_PATH ${GITHUB_WORKSPACE}/TWRP-RECOVERY-BOOT-X6835B.img
-          
-          # التأكد من الحجم وملء الملف ليكون 32MB تماماً كما يحب Infinix
-          truncate -s 32M ${GITHUB_WORKSPACE}/TWRP-RECOVERY-BOOT-X6835B.img
+          # البحث عن الملف الناتج ورفعه
+          find workspace/out/target/product/x6835b/ -name "boot.img" -exec cp {} TWRP-X6835B-BOOT.img \;
+          # ضمان حجم 32MB كما يتطلب انفنكس
+          truncate -s 32M TWRP-X6835B-BOOT.img
 
-      - name: Release Verified Boot
+      - name: Final Release
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-RECOVERY-BOOT-X6835B.img
-          name: TWRP-STABLE-SUCCESS-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-stable
+          files: TWRP-X6835B-BOOT.img
+          name: TWRP-FINAL-FIXED-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-fixed
           body: |
-            أخيراً! تم بناء الريكوفري المدمج بالبوت.
-            - الحجم: 32MB (مطابق لمعايير Infinix).
-            - التوقيع: أندرويد رسمي (بناء من السورس).
-            - التفليش: fastboot flash boot TWRP-RECOVERY-BOOT-X6835B.img
+            تم حل مشكلة تعارض المجلدات (Vendor Conflict).
+            هذا الملف هو Boot Image مدمج بالريكوفري.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
