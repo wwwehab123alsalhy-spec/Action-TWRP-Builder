@@ -1,4 +1,4 @@
-name: TWRP-X6835B-FIX-VENDOR-CONFLICT
+name: TWRP-X6835B-DEEP-CLEAN-BUILD
 
 on:
   workflow_dispatch:
@@ -25,39 +25,41 @@ jobs:
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
 
-      - name: Clone and Clean Device Tree
+      - name: Clone and Force Clean Tree
         run: |
           cd workspace
           git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
-          # حل مشكلة الفشل عند 99%: حذف المجلدات التي تسبب تعارض الروابط الرمزية
+          
+          # الخطوة السحرية: تنظيف المجلدات التي تسبب خطأ الـ Symlink
+          echo "Cleaning problematic directories..."
           rm -rf device/infinix/x6835b/recovery/root/vendor
           rm -rf device/infinix/x6835b/recovery/root/system
+          rm -rf device/infinix/x6835b/recovery/root/odm
 
-      - name: Build Integrated Boot
+      - name: Build Boot Image
         run: |
           cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
-          # بناء البوت المدمج لتجنب خطأ الريكوفري المنفصل
+          # بناء البوت المدمج
           make bootimage -j$(nproc)
 
-      - name: Export and Pad Image
+      - name: Final Package
         run: |
-          # البحث عن الملف الناتج ورفعه
-          find workspace/out/target/product/x6835b/ -name "boot.img" -exec cp {} TWRP-X6835B-BOOT.img \;
-          # ضمان حجم 32MB كما يتطلب انفنكس
-          truncate -s 32M TWRP-X6835B-BOOT.img
+          # البحث عن الملف الناتج
+          FILE=$(find workspace/out/target/product/x6835b/ -name "boot.img" | head -n 1)
+          if [ -z "$FILE" ]; then echo "Boot image not found"; exit 1; fi
+          cp $FILE TWRP-X6835B-BOOT-FINAL.img
+          # تكبير الحجم لـ 32MB لضمان التوافق مع انفنكس
+          truncate -s 32M TWRP-X6835B-BOOT-FINAL.img
 
-      - name: Final Release
+      - name: Release Image
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-X6835B-BOOT.img
-          name: TWRP-FINAL-FIXED-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-fixed
-          body: |
-            تم حل مشكلة تعارض المجلدات (Vendor Conflict).
-            هذا الملف هو Boot Image مدمج بالريكوفري.
+          files: TWRP-X6835B-BOOT-FINAL.img
+          name: TWRP-FINAL-SUCCESS-${{ github.run_id }}
+          tag_name: v${{ github.run_id }}-success
+          body: "تم حل مشكلة الـ Symlink وتجاوز نسبة 99% بنجاح."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
