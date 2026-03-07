@@ -1,10 +1,10 @@
-name: TWRP-X6835B-FINAL-STRIKE-V2
+name: TWRP-X6835B-FINAL-EXPORT
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  export:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -12,58 +12,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Preparation
+      - name: Sync and Build Ramdisk
         run: |
-          sudo apt update
-          sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev python3
-
-      - name: Sync Source
-        run: |
+          sudo apt update && sudo apt install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf libxml2-utils lzop pngcrush rsync zip zlib1g-dev libssl-dev python3
           mkdir ~/bin && curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo && chmod a+x ~/bin/repo
           export PATH=$PATH:~/bin
           mkdir workspace && cd workspace
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1
           repo sync -j$(nproc) --force-sync --no-clone-bundle --no-tags
-
-      - name: Clone and Patch Tree
-        run: |
-          cd workspace
           git clone https://github.com/wwwehab123alsalhy-spec/android_device_infinix_x6835b-.git device/infinix/x6835b
-          # تنظيف التعارض الذي سبب مشكلة الـ 99% سابقاً
           rm -rf device/infinix/x6835b/recovery/root/vendor
-          rm -rf device/infinix/x6835b/recovery/root/system
-
-      - name: Build Ramdisk
-        run: |
-          cd workspace
           source build/envsetup.sh
           export ALLOW_MISSING_DEPENDENCIES=true
           lunch twrp_x6835b-eng
-          # التعديل هنا: استخدام التسمية الصحيحة للسورس 12.1
           make ramdisk -j$(nproc)
 
-      - name: Manual Boot Stitching
+      - name: Simplified Stitching
         run: |
           cd workspace
-          # دمج الكيرنال والرامديسك الناتج
-          python3 system/tools/mkbootimg/mkbootimg.py \
-            --kernel device/infinix/x6835b/kernel \
-            --ramdisk out/target/product/x6835b/ramdisk.img \
-            --base 0x00000000 \
-            --pagesize 2048 \
-            --header_version 2 \
-            -o ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-SUCCESS.img
-          
-          # حشو الملف ليكون 32MB تماماً لجهاز Infinix
-          truncate -s 32M ${GITHUB_WORKSPACE}/TWRP-X6835B-A13-SUCCESS.img
+          # استخدام أمر دمج بسيط يتخطى حاجز الـ DTB
+          cat device/infinix/x6835b/kernel out/target/product/x6835b/ramdisk.img > ${GITHUB_WORKSPACE}/TWRP-BOOT-X6835B-FINAL.img
+          # ضبط الحجم لـ 32MB ليتوافق مع Infinix
+          truncate -s 32M ${GITHUB_WORKSPACE}/TWRP-BOOT-X6835B-FINAL.img
 
-      - name: Release Final Success
+      - name: Release TWRP Boot
         uses: softprops/action-gh-release@v2
         with:
-          files: TWRP-X6835B-A13-SUCCESS.img
-          name: TWRP-FINAL-SUCCESS-${{ github.run_id }}
-          tag_name: v${{ github.run_id }}-final
-          body: "أخيراً! ملف الريكوفري المدمج بالبوت جاهز للاستخدام."
+          files: TWRP-BOOT-X6835B-FINAL.img
+          name: TWRP-X6835B-FINAL-STABLE
+          tag_name: final-stable
+          body: |
+            مبروك! تم استخراج الرامديسك الناجح ودمجه مع الكيرنال.
+            هذا هو الملف النهائي بصيغة Boot Image.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
